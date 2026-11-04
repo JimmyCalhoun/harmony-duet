@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102821">
+  <title>Harmony Duet · Find your own line</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./" aria-label="Harmony Duet home"><span class="brand-icon" aria-hidden="true">≋</span> harmony<span>duet</span></a>
+    <span class="local-badge"><span aria-hidden="true">●</span> Private by design · audio stays here</span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">TWO VOICES. YOUR OWN LINE.</p><h1>A little independence.<br>A lot of harmony.</h1><p class="lede">Follow the moving melody or hold a steady note.<br>Then sing alongside a recording of yourself.</p></div>
+      <aside class="tip"><span aria-hidden="true">↗</span><div><strong>Headphones on. Find your space.</strong><p>Keep the accompaniment out of your microphone. Your mic is never played live through the speakers.</p></div></aside>
+    </section>
+
+    <section class="setup panel" aria-labelledby="setup-title">
+      <div class="section-heading"><h2 id="setup-title">01 <span>Set your exercise</span></h2><span class="muted">Major scale · one note per beat · 4-beat count-in</span></div>
+      <div class="settings">
+        <label>Key<select id="key" class="exercise-setting"></select></label>
+        <label>Tonic register<select id="octave" class="exercise-setting"><option value="3">C3–B3 · lower</option><option value="4" selected>C4–B4 · middle</option><option value="5">C5–B5 · upper</option></select></label>
+        <label>Tempo <span class="unit">BPM</span><input id="bpm" class="exercise-setting" type="number" min="40" max="180" value="90"></label>
+        <label>Steady harmony<select id="harmony-degree" class="exercise-setting"><option value="1">1 · tonic</option><option value="5">5 · dominant</option></select></label>
+        <label>Rounds<select id="repeats" class="exercise-setting"><option value="1">1 round · 9 beats</option><option value="2">2 rounds · 18 beats</option><option value="4">4 rounds · 36 beats</option></select></label>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="practice panel" aria-labelledby="practice-title">
+        <div class="section-heading"><h2 id="practice-title">02 <span>Choose your line</span></h2><span id="exercise-length" class="muted"></span></div>
+        <fieldset class="parts"><legend class="sr-only">Part to practice or record</legend>
+          <label class="part melody-part"><input type="radio" name="part" value="melody" checked><span><strong>The melody</strong><small>Move up, then come home</small></span><span class="part-tag">1 → 5 → 1</span></label>
+          <label class="part harmony-part"><input type="radio" name="part" value="harmony"><span><strong>The steady harmony</strong><small>Stay grounded while the melody moves</small></span><span id="harmony-tag" class="part-tag">1 · 1 · 1</span></label>
+        </fieldset>
+        <div class="score" aria-label="Exercise notes">
+          <div class="score-label melody-text">MELODY <span id="melody-target"></span></div><div id="melody-notes" class="note-row"></div>
+          <div class="score-label harmony-text">HARMONY <span id="harmony-target"></span></div><div id="harmony-notes" class="note-row"></div>
+        </div>
+        <div class="transport-state"><span id="transport-status" role="status">Ready when you are</span><span id="beat-status"></span></div>
+        <div class="progress-track"><div id="progress"></div></div>
+        <div class="transport">
+          <button id="practice" class="primary">▶ Practice</button>
+          <button id="record" class="record-button"><span aria-hidden="true">●</span> Record my melody</button>
+          <button id="stop" disabled>■ Stop</button>
+        </div>
+        <label class="check"><input id="use-take" type="checkbox" checked><span>Hear my saved opposite part <small id="opposite-status">No matching take yet — using the synthesized line.</small></span></label>
+        <label class="check"><input id="guide" type="checkbox" checked><span>Play a synthesized guide for my part</span></label>
+        <div class="mix">
+          <label>Melody <output id="melody-volume-value">45%</output><input id="melody-volume" type="range" min="0" max="100" value="45"></label>
+          <label>Harmony <output id="harmony-volume-value">40%</output><input id="harmony-volume" type="range" min="0" max="100" value="40"></label>
+        </div>
+        <div class="assistance">
+          <div class="assist-heading"><label for="assistance">Hear my part clearly</label><output id="assistance-value">Off · normal mix</output></div>
+          <p>Bring your line forward and soften the other. Ease back to zero as you find your footing.</p>
+          <input id="assistance" type="range" min="0" max="100" step="10" value="0" aria-describedby="assist-note">
+          <div class="assist-footer"><span id="assist-note">Your baseline volumes stay unchanged.</span><button id="reset-assistance" class="text-button">Return to normal mix</button></div>
+        </div>
+      </section>
+
+      <section class="feedback panel" aria-labelledby="feedback-title">
+        <div class="section-heading"><h2 id="feedback-title">Live <span>Find your pitch</span></h2><span id="mic-light" class="mic-light">Mic off</span></div>
+        <button id="mic" class="mic-button">Enable microphone</button>
+        <p id="mic-status" class="muted">Permission is requested only when you enable the mic or record.</p>
+        <div id="pitch-card" class="pitch-card">
+          <span class="pitch-caption">YOU ARE SINGING / PLAYING</span>
+          <div id="detected-note" class="detected-note">—</div>
+          <div id="detected-frequency" class="muted">Waiting for your voice</div>
+          <div class="tuner" aria-hidden="true"><div class="tuner-center"></div><div id="needle" class="needle"></div></div>
+          <div class="tuner-labels"><span>FLAT</span><span>ON NOTE</span><span>SHARP</span></div>
+          <p id="pitch-message" role="status">Enable your mic to see live feedback.</p>
+        </div>
+        <div class="target-grid"><div><small>YOUR TARGET</small><strong id="your-target">C4</strong></div><div><small>OTHER LINE</small><strong id="other-target">C4</strong></div></div>
+        <p class="feedback-note">Feedback compares the exact octave. When the lines meet, either part shares the same note.</p>
+        <canvas id="pitch-history" width="600" height="170" role="img" aria-label="Recent pitch trace: green is your target, amber is the other line"></canvas>
+        <div class="graph-legend"><span>— Your target</span><span>— Other line</span><span>· Your voice</span></div>
+      </section>
+    </div>
+
+    <section class="recordings panel" aria-labelledby="recordings-title">
+      <div class="section-heading"><h2 id="recordings-title">03 <span>Make a duet with yourself</span></h2><button id="play-duet" disabled>▶ Play both takes</button></div>
+      <p class="muted">Record one line, switch parts, then record again while your first take plays. Each new take replaces only that part after it finishes.</p>
+      <div id="takes" class="take-grid"></div>
+      <p class="storage-note" id="storage-status">Recordings are saved in this browser on this device. Download a WAV to keep a backup.</p>
+    </section>
+    <div id="notice" class="notice" role="alert" hidden></div>
+    <footer><span>Small steps. Steady voice.</span><span>No accounts. No uploads. Just practice.</span></footer>
+  </main>
+</body>
+</html>
