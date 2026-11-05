@@ -1,9 +1,9 @@
-import { DEGREES, KEYS, otherPart, midiFrequency, frequencyMidi, noteName, degreeMidi, signature, makeTimeline, targetAt, assessPitch, mixLevels, captureWindow, wavBlob } from './music.js';
+import { DEGREES, KEYS, otherPart, midiFrequency, frequencyMidi, noteName, degreeMidi, harmonyDegrees, signature, makeTimeline, targetAt, assessPitch, mixLevels, captureWindow, wavBlob } from './music.js';
 import { detectPitch } from './pitch.js';
 import { openStore, saveTake, deleteTake } from './storage.js';
 
 const $ = id => document.getElementById(id);
-const partNames = { melody: 'melody', harmony: 'steady harmony' };
+const partNames = { melody: 'melody', harmony: 'harmony' };
 const takes = new Map();
 const urls = new Map();
 let active = null;
@@ -20,7 +20,8 @@ function config() {
   if (!Number.isInteger(bpm) || bpm < 40 || bpm > 180) throw new Error('Choose a whole-number tempo between 40 and 180 BPM.');
   return {
     key: Number($('key').value), octave: Number($('octave').value), bpm,
-    harmonyDegree: Number($('harmony-degree').value), repeats: Number($('repeats').value)
+    harmonyDegree: $('harmony-degree').value === '1-to-5' ? '1-to-5' : Number($('harmony-degree').value),
+    repeats: Number($('repeats').value)
   };
 }
 const selectedPart = () => document.querySelector('[name=part]:checked').value;
@@ -30,7 +31,8 @@ function notice(message) {
   $('notice').hidden = !message;
 }
 function describe(c) {
-  return `${noteName(degreeMidi(c, 1))} major · ${c.bpm} BPM · harmony ${c.harmonyDegree} · ${c.repeats} ${c.repeats === 1 ? 'round' : 'rounds'}`;
+  const harmony = c.harmonyDegree === '1-to-5' ? '1 → 5 on beat 5' : `repeated ${c.harmonyDegree}`;
+  return `${noteName(degreeMidi(c, 1))} major · ${c.bpm} BPM · harmony ${harmony} · ${c.repeats} ${c.repeats === 1 ? 'round' : 'rounds'}`;
 }
 
 class AudioEngine {
@@ -213,12 +215,13 @@ function renderExercise() {
   try {
     const c = config();
     $('bpm').setCustomValidity('');
+    const harmony = harmonyDegrees(c);
     for (const part of ['melody', 'harmony']) {
       $(part + '-notes').replaceChildren(...DEGREES.map((degree, index) => {
         const note = document.createElement('div');
         note.className = 'note';
         note.dataset.index = index;
-        const value = part === 'melody' ? degree : c.harmonyDegree;
+        const value = part === 'melody' ? degree : harmony[index];
         note.append(String(value));
         const name = document.createElement('small');
         name.textContent = noteName(degreeMidi(c, value));
@@ -226,7 +229,10 @@ function renderExercise() {
         return note;
       }));
     }
-    $('harmony-tag').textContent = `${c.harmonyDegree} · ${c.harmonyDegree} · ${c.harmonyDegree}`;
+    $('harmony-tag').textContent = c.harmonyDegree === '1-to-5' ? '1 → 5' : `${c.harmonyDegree} · ${c.harmonyDegree} · ${c.harmonyDegree}`;
+    $('harmony-description').textContent = c.harmonyDegree === '1-to-5'
+      ? 'Four tonic beats, then five dominant beats'
+      : 'Stay grounded while the melody moves';
     $('exercise-length').textContent = `${(9 * c.repeats * 60 / c.bpm).toFixed(1)} seconds + count-in`;
     $('record').textContent = `● Record my ${partNames[selectedPart()]}`;
     const opposite = takes.get(otherPart(selectedPart()));
@@ -253,7 +259,7 @@ function renderTakes() {
     const card = document.createElement('article');
     card.className = 'take';
     const title = document.createElement('h3');
-    title.textContent = part === 'melody' ? 'Your melody' : 'Your steady harmony';
+    title.textContent = part === 'melody' ? 'Your melody' : 'Your harmony';
     card.append(title);
     if (!take) {
       const empty = document.createElement('p');
@@ -549,7 +555,7 @@ $('key').replaceChildren(...KEYS.map((name, value) => {
   option.textContent = name;
   return option;
 }));
-document.querySelectorAll('.exercise-setting,[name=part]').forEach(element => element.addEventListener('change', () => {
+document.querySelectorAll('.exercise-setting,[name=part]').forEach(element => element.addEventListener(element.id === 'bpm' ? 'input' : 'change', () => {
   notice('');
   renderExercise();
 }));

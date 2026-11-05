@@ -14,6 +14,15 @@ const installFakeAudio = () => {
   const NativeContext = window.AudioContext;
   window.testAudio = { events: [], microphones: [], mix: [] };
   window.AudioContext = class extends NativeContext {
+    createOscillator() {
+      const oscillator = super.createOscillator();
+      const start = oscillator.start.bind(oscillator);
+      oscillator.start = (...args) => {
+        testAudio.events.push({ type: 'synth', at: args[0], frequency: oscillator.frequency.value });
+        return start(...args);
+      };
+      return oscillator;
+    }
     createGain() {
       const gain = super.createGain();
       const connect = gain.connect.bind(gain);
@@ -117,7 +126,7 @@ try {
   assert.match(await page.locator('#opposite-status').textContent(), /Matching melody/);
   await page.evaluate(() => { testAudio.microphones[0].oscillator.frequency.value = 330; });
   await page.locator('#assistance').fill('80');
-  assert.match(await page.locator('#assistance-value').textContent(), /80%.*steady harmony/);
+  assert.match(await page.locator('#assistance-value').textContent(), /80%.*harmony/);
   assert.equal(await page.locator('#melody-volume').inputValue(), '45');
   assert.equal(await page.locator('#harmony-volume').inputValue(), '40');
   await record('harmony', async () => {
@@ -181,6 +190,71 @@ try {
   await page.locator('#bpm').fill('180');
   await page.locator('#bpm').dispatchEvent('change');
 
+  await page.locator('#harmony-degree').selectOption('1-to-5');
+  const displayedDegrees = id => page.locator(`#${id} .note`).evaluateAll(notes => notes.map(note => Number(note.firstChild.textContent)));
+  assert.deepEqual(await displayedDegrees('melody-notes'), [1, 2, 3, 4, 5, 4, 3, 2, 1]);
+  assert.deepEqual(await displayedDegrees('harmony-notes'), [1, 1, 1, 1, 5, 5, 5, 5, 5]);
+  assert.equal(await page.locator('#play-duet').isDisabled(), true);
+  assert.equal(await page.locator('.mismatch').count(), 2, 'Legacy constant-note takes must not play against switching harmony');
+  await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
+  assert.equal(await page.locator('#harmony-degree').inputValue(), '1', 'Legacy take must restore its original constant harmony after tempo editing');
+  assert.equal(await page.locator('#play-duet').isEnabled(), true);
+  await page.locator('#harmony-degree').selectOption('5');
+  assert.deepEqual(await displayedDegrees('harmony-notes'), Array(9).fill(5));
+  await page.locator('#harmony-degree').selectOption('1-to-5');
+  await page.locator('[name=part][value=harmony]').check();
+  await page.locator('#mic').click();
+  await page.waitForFunction(() => document.getElementById('mic-light').textContent === 'Mic on');
+  await page.evaluate(() => {
+    testAudio.events = [];
+    testAudio.microphones[0].oscillator.frequency.value = 349.228;
+  });
+  await page.locator('#practice').click();
+  await page.waitForFunction(() => document.getElementById('beat-status').textContent.includes('beat 4/9'));
+  assert.equal(await page.locator('#your-target').textContent(), 'C4');
+  await page.waitForFunction(() => document.getElementById('beat-status').textContent.includes('beat 6/9')
+    && document.getElementById('pitch-card').classList.contains('drift'));
+  assert.equal(await page.locator('#your-target').textContent(), 'G4');
+  assert.equal(await page.locator('#other-target').textContent(), 'F4');
+  await page.waitForFunction(() => document.getElementById('transport-status').textContent.startsWith('Exercise complete'));
+  const synth = await page.evaluate(() => testAudio.events.filter(event => event.type === 'synth'));
+  const expectedMelody = [60, 62, 64, 65, 67, 65, 64, 62, 60];
+  const expectedHarmony = [60, 60, 60, 60, 67, 67, 67, 67, 67];
+  assert.equal(synth.length, 22, 'Four count-in clicks plus nine notes on each line');
+  for (let index = 0; index < 9; index++) {
+    assert.ok(Math.abs(synth[4 + index].frequency - 440 * 2 ** ((expectedMelody[index] - 69) / 12)) < .01);
+    assert.ok(Math.abs(synth[13 + index].frequency - 440 * 2 ** ((expectedHarmony[index] - 69) / 12)) < .01);
+    assert.equal(synth[4 + index].at, synth[13 + index].at, 'Synth lines must align on every beat');
+  }
+  await record('harmony');
+  assert.equal((await saved()).find(take => take.part === 'harmony').config.harmonyDegree, '1-to-5');
+  assert.equal(await page.locator('#play-duet').isDisabled(), true, 'Mixed-pattern pair must remain incompatible');
+  await page.locator('#assistance').fill('80');
+  await record('melody', async () => {
+    const mix = await page.evaluate(() => testAudio.mix.map(node => node.gain.value));
+    assert.ok(mix[0] > .6 && mix[1] < .15, 'Assistance must also emphasize melody against a saved switching-harmony take');
+  });
+  await record('harmony');
+  events = await page.evaluate(() => testAudio.events);
+  captures = events.filter(event => event.type === 'arm');
+  playbacks = events.filter(event => event.type === 'play-take');
+  assert.equal(playbacks.length, 2, 'Switching pattern must overdub in both directions');
+  for (let index = 0; index < 2; index++) {
+    assert.ok(Math.abs(captures[index + 1].startFrame / captures[index + 1].rate - playbacks[index].at) < 1 / captures[index + 1].rate);
+  }
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('audio').length === 2);
+  assert.equal(await page.locator('#play-duet').isDisabled(), true);
+  await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
+  assert.equal(await page.locator('#harmony-degree').inputValue(), '1-to-5', 'Saved pattern must survive reload and restore');
+  assert.equal(await page.locator('#play-duet').isEnabled(), true);
+  assert.deepEqual(await displayedDegrees('harmony-notes'), expectedHarmony.map(midi => midi === 60 ? 1 : 5));
+  await page.locator('#play-duet').click();
+  await page.waitForFunction(() => document.getElementById('transport-status').textContent.startsWith('Exercise complete'));
+  await page.locator('#harmony-degree').selectOption('5');
+  assert.equal(await page.locator('#play-duet').isDisabled(), true);
+  await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
+
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Mobile layout must not overflow');
   await page.screenshot({ path: process.env.SCREENSHOT_PATH || '/tmp/harmony-duet-mobile.png', fullPage: true });
@@ -225,7 +299,7 @@ try {
   assert.equal(await failure.locator('#record').isEnabled(), true, 'Storage failure must not leave the interface busy');
   await failure.close();
   assert.deepEqual(errors, []);
-  console.log('PASS: both overdub directions, frame-aligned playback, microphone-only WAVs, live pitch, actual assistance gains/reset, cancellation, incompatible/invalid settings, reload persistence, solo/duet playback, mic cleanup, denied permission, pending-request cancellation, storage failure and mobile layout.');
+  console.log('PASS: both patterns and overdub directions, exact switching synth sequence/alignment, changing pitch/drift targets, pattern compatibility/legacy restore/persistence, frame-aligned playback, microphone-only WAVs, assistance gains/reset, cancellation, invalid settings, solo/duet playback, mic cleanup, denied permission, pending-request cancellation, storage failure and mobile layout.');
 } finally {
   await browser.close();
 }

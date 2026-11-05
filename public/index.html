@@ -15,7 +15,7 @@
   </header>
   <main>
     <section class="intro">
-      <div><p class="eyebrow">TWO VOICES. YOUR OWN LINE.</p><h1>A little independence.<br>A lot of harmony.</h1><p class="lede">Follow the moving melody or hold a steady note.<br>Then sing alongside a recording of yourself.</p></div>
+      <div><p class="eyebrow">TWO VOICES. YOUR OWN LINE.</p><h1>A little independence.<br>A lot of harmony.</h1><p class="lede">Follow the melody, hold a note, or try a harmony shift.<br>Then sing alongside a recording of yourself.</p></div>
       <aside class="tip"><span aria-hidden="true">↗</span><div><strong>Headphones on. Find your space.</strong><p>Keep the accompaniment out of your microphone. Your mic is never played live through the speakers.</p></div></aside>
     </section>
 
@@ -25,7 +25,7 @@
         <label>Key<select id="key" class="exercise-setting"></select></label>
         <label>Tonic register<select id="octave" class="exercise-setting"><option value="3">C3–B3 · lower</option><option value="4" selected>C4–B4 · middle</option><option value="5">C5–B5 · upper</option></select></label>
         <label>Tempo <span class="unit">BPM</span><input id="bpm" class="exercise-setting" type="number" min="40" max="180" value="90"></label>
-        <label>Steady harmony<select id="harmony-degree" class="exercise-setting"><option value="1">1 · tonic</option><option value="5">5 · dominant</option></select></label>
+        <label>Harmony pattern<select id="harmony-degree" class="exercise-setting"><option value="1">1 · repeated tonic</option><option value="5">5 · repeated dominant</option><option value="1-to-5">1 → 5 · switch on beat 5</option></select></label>
         <label>Rounds<select id="repeats" class="exercise-setting"><option value="1">1 round · 9 beats</option><option value="2">2 rounds · 18 beats</option><option value="4">4 rounds · 36 beats</option></select></label>
       </div>
     </section>
@@ -35,7 +35,7 @@
         <div class="section-heading"><h2 id="practice-title">02 <span>Choose your line</span></h2><span id="exercise-length" class="muted"></span></div>
         <fieldset class="parts"><legend class="sr-only">Part to practice or record</legend>
           <label class="part melody-part"><input type="radio" name="part" value="melody" checked><span><strong>The melody</strong><small>Move up, then come home</small></span><span class="part-tag">1 → 5 → 1</span></label>
-          <label class="part harmony-part"><input type="radio" name="part" value="harmony"><span><strong>The steady harmony</strong><small>Stay grounded while the melody moves</small></span><span id="harmony-tag" class="part-tag">1 · 1 · 1</span></label>
+          <label class="part harmony-part"><input type="radio" name="part" value="harmony"><span><strong>The harmony</strong><small id="harmony-description">Stay grounded while the melody moves</small></span><span id="harmony-tag" class="part-tag">1 · 1 · 1</span></label>
         </fieldset>
         <div class="score" aria-label="Exercise notes">
           <div class="score-label melody-text">MELODY <span id="melody-target"></span></div><div id="melody-notes" class="note-row"></div>

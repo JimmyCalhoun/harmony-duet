@@ -8,16 +8,20 @@ export const noteName = midi => `${KEYS[((Math.round(midi) % 12) + 12) % 12]}${M
 export const tonicMidi = config => (config.octave + 1) * 12 + config.key;
 export const degreeMidi = (config, degree) => tonicMidi(config) + MAJOR[degree - 1];
 export const signature = config => JSON.stringify([config.key, config.octave, config.bpm, config.harmonyDegree, config.repeats]);
+export const harmonyDegrees = config => config.harmonyDegree === '1-to-5'
+  ? [1, 1, 1, 1, 5, 5, 5, 5, 5]
+  : DEGREES.map(() => config.harmonyDegree);
 
 export function makeTimeline(config, start = 0) {
   const beat = 60 / config.bpm;
   const steps = DEGREES.length * config.repeats;
+  const harmony = harmonyDegrees(config);
   return {
     start, beat, steps, end: start + steps * beat,
     notes: Array.from({ length: steps }, (_, index) => ({
       index, start: start + index * beat, end: start + (index + 1) * beat,
       melody: degreeMidi(config, DEGREES[index % DEGREES.length]),
-      harmony: degreeMidi(config, config.harmonyDegree)
+      harmony: degreeMidi(config, harmony[index % DEGREES.length])
     }))
   };
 }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
-import { DEGREES, degreeMidi, noteName, midiFrequency, makeTimeline, targetAt, signature, assessPitch, mixLevels, captureWindow, wavBlob } from '../public/music.js';
+import { DEGREES, degreeMidi, noteName, midiFrequency, harmonyDegrees, makeTimeline, targetAt, signature, assessPitch, mixLevels, captureWindow, wavBlob } from '../public/music.js';
 import { detectPitch } from '../public/pitch.js';
 
 const config = { key: 0, octave: 4, bpm: 90, harmonyDegree: 1, repeats: 1 };
@@ -24,6 +24,36 @@ test('both lines use the same absolute sample-clock timeline over repetitions', 
 test('every musically incompatible setting invalidates saved take', () => {
   for (const key of Object.keys(config)) assert.notEqual(signature(config), signature({ ...config, [key]: config[key] + 1 }));
   assert.equal(signature(config), signature({ ...config, volume: 0.7 }));
+});
+test('switching harmony aligns four tonic and five dominant notes to the unchanged melody each round', () => {
+  const c = { ...config, harmonyDegree: '1-to-5', repeats: 2, bpm: 120 };
+  assert.deepEqual(harmonyDegrees(c), [1, 1, 1, 1, 5, 5, 5, 5, 5]);
+  const timeline = makeTimeline(c, 10);
+  for (let round = 0; round < 2; round++) {
+    const notes = timeline.notes.slice(round * 9, (round + 1) * 9);
+    assert.deepEqual(notes.map(note => note.melody), [60, 62, 64, 65, 67, 65, 64, 62, 60]);
+    assert.deepEqual(notes.map(note => note.harmony), [60, 60, 60, 60, 67, 67, 67, 67, 67]);
+    for (const [index, note] of notes.entries()) {
+      assert.equal(note.start, 10 + (round * 9 + index) * .5);
+      assert.equal(note.end, note.start + .5);
+      assert.equal(targetAt(timeline, note.start + .1), note);
+    }
+  }
+  assert.equal(assessPitch(midiFrequency(65), timeline.notes[5].harmony, timeline.notes[5].melody).kind, 'drift');
+  assert.equal(assessPitch(midiFrequency(67), timeline.notes[4].harmony, timeline.notes[4].melody).kind, 'good');
+  const transposed = makeTimeline({ ...c, key: 2, octave: 3 });
+  assert.deepEqual(transposed.notes.slice(0, 9).map(note => note.harmony), [50, 50, 50, 50, 57, 57, 57, 57, 57]);
+});
+test('pattern signatures distinguish all three choices and preserve legacy recording compatibility', () => {
+  assert.equal(signature(config), '[0,4,90,1,1]');
+  assert.equal(signature({ ...config, harmonyDegree: 5 }), '[0,4,90,5,1]');
+  const variant = { ...config, harmonyDegree: '1-to-5' };
+  assert.notEqual(signature(variant), signature(config));
+  assert.notEqual(signature(variant), signature({ ...config, harmonyDegree: 5 }));
+  assert.equal(signature(JSON.parse(JSON.stringify(variant))), signature(variant));
+  for (const degree of [1, 5]) {
+    assert.deepEqual(harmonyDegrees({ ...config, harmonyDegree: degree }), Array(9).fill(degree));
+  }
 });
 test('feedback detects the other line and does not warn where parts meet', () => {
   assert.equal(assessPitch(midiFrequency(60), 64, 60).kind, 'drift');
