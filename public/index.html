@@ -25,7 +25,7 @@
         <label>Key<select id="key" class="exercise-setting"></select></label>
         <label>Tonic register<select id="octave" class="exercise-setting"><option value="3">C3–B3 · lower</option><option value="4" selected>C4–B4 · middle</option><option value="5">C5–B5 · upper</option></select></label>
         <label>Tempo <span class="unit">BPM</span><input id="bpm" class="exercise-setting" type="number" min="40" max="180" value="90"></label>
-        <label>Harmony pattern<select id="harmony-degree" class="exercise-setting"><option value="1">1 · repeated tonic</option><option value="5">5 · repeated dominant</option><option value="1-to-5">1 → 5 · switch on beat 5</option></select></label>
+        <label>Harmony pattern<select id="harmony-degree" class="exercise-setting"><option value="1">1 · repeated tonic</option><option value="5">5 · repeated dominant</option><option value="1-to-5">1 → 5 · switch on beat 5</option><option value="third-above">Third above</option><option value="third-below">Third below</option><option value="sixth-above">Sixth above</option></select></label>
         <label>Rounds<select id="repeats" class="exercise-setting"><option value="1">1 round · 9 beats</option><option value="2">2 rounds · 18 beats</option><option value="4">4 rounds · 36 beats</option></select></label>
       </div>
     </section>
@@ -41,6 +41,7 @@
           <div class="score-label melody-text">MELODY <span id="melody-target"></span></div><div id="melody-notes" class="note-row"></div>
           <div class="score-label harmony-text">HARMONY <span id="harmony-target"></span></div><div id="harmony-notes" class="note-row"></div>
         </div>
+        <p class="octave-legend muted">Degrees are relative to your major key. ↓ = lower octave · ↑ = upper octave. Note names show the exact register.</p>
         <div class="transport-state"><span id="transport-status" role="status">Ready when you are</span><span id="beat-status"></span></div>
         <div class="progress-track"><div id="progress"></div></div>
         <div class="transport">

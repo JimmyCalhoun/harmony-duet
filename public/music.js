@@ -6,11 +6,27 @@ export const midiFrequency = midi => 440 * 2 ** ((midi - 69) / 12);
 export const frequencyMidi = hz => 69 + 12 * Math.log2(hz / 440);
 export const noteName = midi => `${KEYS[((Math.round(midi) % 12) + 12) % 12]}${Math.floor(Math.round(midi) / 12) - 1}`;
 export const tonicMidi = config => (config.octave + 1) * 12 + config.key;
-export const degreeMidi = (config, degree) => tonicMidi(config) + MAJOR[degree - 1];
+export const degreeMidi = (config, degree) => tonicMidi(config)
+  + MAJOR[((degree - 1) % 7 + 7) % 7] + 12 * Math.floor((degree - 1) / 7);
+export function degreeLabel(degree) {
+  const octave = Math.floor((degree - 1) / 7);
+  const label = String(((degree - 1) % 7 + 7) % 7 + 1);
+  return label + (octave < 0 ? '↓' : octave > 0 ? '↑' : '');
+}
 export const signature = config => JSON.stringify([config.key, config.octave, config.bpm, config.harmonyDegree, config.repeats]);
-export const harmonyDegrees = config => config.harmonyDegree === '1-to-5'
-  ? [1, 1, 1, 1, 5, 5, 5, 5, 5]
-  : DEGREES.map(() => config.harmonyDegree);
+export const HARMONY_PATTERNS = {
+  '1-to-5': { label: '1 → 5 on beat 5', description: 'Four tonic beats, then five dominant beats', tag: '1 → 5' },
+  'third-above': { label: 'Third above', description: 'Follow two major-scale steps above the melody', tag: '3RD ↑', offset: 2 },
+  'third-below': { label: 'Third below', description: 'Follow two major-scale steps below the melody', tag: '3RD ↓', offset: -2 },
+  'sixth-above': { label: 'Sixth above', description: 'Follow five major-scale steps above the melody', tag: '6TH ↑', offset: 5 }
+};
+export function harmonyDegrees(config) {
+  if (config.harmonyDegree === '1-to-5') return [1, 1, 1, 1, 5, 5, 5, 5, 5];
+  if (config.harmonyDegree === 1 || config.harmonyDegree === 5) return DEGREES.map(() => config.harmonyDegree);
+  const pattern = HARMONY_PATTERNS[config.harmonyDegree];
+  if (!pattern) throw new Error('Choose a supported harmony pattern.');
+  return DEGREES.map(degree => degree + pattern.offset);
+}
 
 export function makeTimeline(config, start = 0) {
   const beat = 60 / config.bpm;

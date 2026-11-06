@@ -1,4 +1,4 @@
-import { DEGREES, KEYS, otherPart, midiFrequency, frequencyMidi, noteName, degreeMidi, harmonyDegrees, signature, makeTimeline, targetAt, assessPitch, mixLevels, captureWindow, wavBlob } from './music.js';
+import { DEGREES, KEYS, HARMONY_PATTERNS, otherPart, midiFrequency, frequencyMidi, noteName, degreeMidi, degreeLabel, harmonyDegrees, signature, makeTimeline, targetAt, assessPitch, mixLevels, captureWindow, wavBlob } from './music.js';
 import { detectPitch } from './pitch.js';
 import { openStore, saveTake, deleteTake } from './storage.js';
 
@@ -20,7 +20,7 @@ function config() {
   if (!Number.isInteger(bpm) || bpm < 40 || bpm > 180) throw new Error('Choose a whole-number tempo between 40 and 180 BPM.');
   return {
     key: Number($('key').value), octave: Number($('octave').value), bpm,
-    harmonyDegree: $('harmony-degree').value === '1-to-5' ? '1-to-5' : Number($('harmony-degree').value),
+    harmonyDegree: ['1', '5'].includes($('harmony-degree').value) ? Number($('harmony-degree').value) : $('harmony-degree').value,
     repeats: Number($('repeats').value)
   };
 }
@@ -31,7 +31,7 @@ function notice(message) {
   $('notice').hidden = !message;
 }
 function describe(c) {
-  const harmony = c.harmonyDegree === '1-to-5' ? '1 → 5 on beat 5' : `repeated ${c.harmonyDegree}`;
+  const harmony = HARMONY_PATTERNS[c.harmonyDegree]?.label || `repeated ${c.harmonyDegree}`;
   return `${noteName(degreeMidi(c, 1))} major · ${c.bpm} BPM · harmony ${harmony} · ${c.repeats} ${c.repeats === 1 ? 'round' : 'rounds'}`;
 }
 
@@ -222,17 +222,18 @@ function renderExercise() {
         note.className = 'note';
         note.dataset.index = index;
         const value = part === 'melody' ? degree : harmony[index];
-        note.append(String(value));
+        note.append(degreeLabel(value));
+        const octave = Math.floor((value - 1) / 7);
+        note.setAttribute('aria-label', `Degree ${((value - 1) % 7 + 7) % 7 + 1}${octave < 0 ? ', lower octave' : octave > 0 ? ', upper octave' : ''}, ${noteName(degreeMidi(c, value))}`);
         const name = document.createElement('small');
         name.textContent = noteName(degreeMidi(c, value));
         note.append(name);
         return note;
       }));
     }
-    $('harmony-tag').textContent = c.harmonyDegree === '1-to-5' ? '1 → 5' : `${c.harmonyDegree} · ${c.harmonyDegree} · ${c.harmonyDegree}`;
-    $('harmony-description').textContent = c.harmonyDegree === '1-to-5'
-      ? 'Four tonic beats, then five dominant beats'
-      : 'Stay grounded while the melody moves';
+    const pattern = HARMONY_PATTERNS[c.harmonyDegree];
+    $('harmony-tag').textContent = pattern?.tag || `${c.harmonyDegree} · ${c.harmonyDegree} · ${c.harmonyDegree}`;
+    $('harmony-description').textContent = pattern?.description || 'Stay grounded while the melody moves';
     $('exercise-length').textContent = `${(9 * c.repeats * 60 / c.bpm).toFixed(1)} seconds + count-in`;
     $('record').textContent = `● Record my ${partNames[selectedPart()]}`;
     const opposite = takes.get(otherPart(selectedPart()));

@@ -255,6 +255,51 @@ try {
   assert.equal(await page.locator('#play-duet').isDisabled(), true);
   await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
 
+  const intervalPatterns = [
+    { id: 'third-above', label: 'Third above', degrees: ['3','4','5','6','7','6','5','4','3'], pitches: [64,65,67,69,71,69,67,65,64], target: 'E4' },
+    { id: 'third-below', label: 'Third below', degrees: ['6↓','7↓','1','2','3','2','1','7↓','6↓'], pitches: [57,59,60,62,64,62,60,59,57], target: 'A3' },
+    { id: 'sixth-above', label: 'Sixth above', degrees: ['6','7','1↑','2↑','3↑','2↑','1↑','7','6'], pitches: [69,71,72,74,76,74,72,71,69], target: 'A4' }
+  ];
+  for (const pattern of intervalPatterns) {
+    await page.locator('#harmony-degree').selectOption(pattern.id);
+    assert.equal(await page.locator('#play-duet').isDisabled(), true, 'Other exercise recordings must be incompatible');
+    assert.deepEqual(await page.locator('#harmony-notes .note').evaluateAll(notes => notes.map(note => note.firstChild.textContent)), pattern.degrees);
+    await page.locator('[name=part][value=harmony]').check();
+    assert.equal(await page.locator('#your-target').textContent(), pattern.target);
+    await page.locator('#use-take').uncheck();
+    await page.evaluate(() => { testAudio.events = []; });
+    await page.locator('#practice').click();
+    await page.waitForFunction(() => document.getElementById('transport-status').textContent.startsWith('Exercise complete'));
+    const scheduled = await page.evaluate(() => testAudio.events.filter(event => event.type === 'synth'));
+    assert.equal(scheduled.length, 22);
+    for (let index = 0; index < 9; index++) {
+      assert.ok(Math.abs(scheduled[13 + index].frequency - 440 * 2 ** ((pattern.pitches[index] - 69) / 12)) < .01, `${pattern.id} scheduled harmony note ${index}`);
+      assert.ok(Math.abs(scheduled[4 + index].frequency - 440 * 2 ** ((expectedMelody[index] - 69) / 12)) < .01);
+      assert.equal(scheduled[4 + index].at, scheduled[13 + index].at);
+    }
+    await page.locator('#use-take').check();
+    await record('melody');
+    await page.evaluate(() => { testAudio.events = []; });
+    await record('harmony');
+    await record('melody');
+    const recordingEvents = await page.evaluate(() => testAudio.events);
+    const intervalCaptures = recordingEvents.filter(event => event.type === 'arm');
+    const intervalPlayback = recordingEvents.filter(event => event.type === 'play-take');
+    assert.equal(intervalCaptures.length, 2);
+    assert.equal(intervalPlayback.length, 2, `${pattern.id} must support both overdub directions`);
+    for (let index = 0; index < 2; index++) {
+      assert.ok(Math.abs(intervalCaptures[index].startFrame / intervalCaptures[index].rate - intervalPlayback[index].at) < 1 / intervalCaptures[index].rate);
+    }
+    assert.ok((await saved()).every(take => take.config.harmonyDegree === pattern.id));
+    await page.reload();
+    await page.waitForFunction(() => document.querySelectorAll('audio').length === 2);
+    assert.equal(await page.locator('#play-duet').isDisabled(), true);
+    await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
+    assert.equal(await page.locator('#harmony-degree').inputValue(), pattern.id);
+    assert.equal(await page.locator('#play-duet').isEnabled(), true);
+    assert.match(await page.locator('.take').first().textContent(), new RegExp(pattern.label));
+  }
+
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Mobile layout must not overflow');
   await page.screenshot({ path: process.env.SCREENSHOT_PATH || '/tmp/harmony-duet-mobile.png', fullPage: true });
@@ -299,7 +344,7 @@ try {
   assert.equal(await failure.locator('#record').isEnabled(), true, 'Storage failure must not leave the interface busy');
   await failure.close();
   assert.deepEqual(errors, []);
-  console.log('PASS: both patterns and overdub directions, exact switching synth sequence/alignment, changing pitch/drift targets, pattern compatibility/legacy restore/persistence, frame-aligned playback, microphone-only WAVs, assistance gains/reset, cancellation, invalid settings, solo/duet playback, mic cleanup, denied permission, pending-request cancellation, storage failure and mobile layout.');
+  console.log('PASS: original/switching/third-above/third-below/sixth-above patterns, exact synth pitches and octave labels, both overdub directions per new pattern, changing pitch/drift targets, pattern compatibility/legacy restore/persistence, frame-aligned playback, microphone-only WAVs, assistance gains/reset, cancellation, invalid settings, solo/duet playback, mic cleanup, denied permission, pending-request cancellation, storage failure and mobile layout.');
 } finally {
   await browser.close();
 }

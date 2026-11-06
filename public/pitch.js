@@ -1,6 +1,6 @@
 // Downsampling bounds the YIN difference calculation independently of device sample rate.
 export function detectPitch(input, sampleRate) {
-  const stride = Math.max(1, Math.floor(sampleRate / 16000));
+  const stride = Math.max(1, Math.floor(sampleRate / 24000));
   const rate = sampleRate / stride;
   const size = Math.floor(input.length / stride);
   const data = new Float32Array(size);
@@ -13,7 +13,7 @@ export function detectPitch(input, sampleRate) {
   }
   if (Math.sqrt(energy / size) < 0.008) return null;
   const maxLag = Math.min(Math.floor(rate / 65), Math.floor(size / 2));
-  const minLag = Math.max(2, Math.floor(rate / 2000));
+  const minLag = Math.max(2, Math.floor(rate / 3000));
   const difference = new Float32Array(maxLag + 1);
   let running = 0;
   for (let lag = 1; lag <= maxLag; lag++) {

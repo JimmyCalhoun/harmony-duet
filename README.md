@@ -15,11 +15,24 @@ Open **http://localhost:4173** in a current desktop Chrome, Edge, Firefox, or Sa
 
 ## Practice
 
-- Defaults: **C major, tonic C4, 90 BPM, one 9-beat round**, four count-in clicks. Melody always follows **1, 2, 3, 4, 5, 4, 3, 2, 1**. Under **Harmony pattern**, choose repeated **1** (the default), repeated **5**, or **1 → 5 · switch on beat 5**: **1, 1, 1, 1, 5, 5, 5, 5, 5**. Each harmony degree aligns with one melody beat and is rearticulated every beat. The complete nine-beat pattern restarts each round. Both lines use the same tonic register.
+- Defaults: **C major, tonic C4, 90 BPM, one 9-beat round**, four count-in clicks. Melody always follows **1, 2, 3, 4, 5, 4, 3, 2, 1**. Under **Harmony pattern**, choose repeated **1** (the default), repeated **5**, **1 → 5 · switch on beat 5**, **Third above**, **Third below**, or **Sixth above**. Each harmony degree aligns with one melody beat and is rearticulated every beat. The complete nine-beat pattern restarts each round.
 - Choose your melody or harmony, set pattern/key/register/tempo/rounds, and press **Practice**. Each exercise is finite. Press Stop or Escape to cancel; hiding the page stops the exercise rather than risking background timing drift.
 - **Enable microphone** for live note, exact-octave cents, target, recent pitch trace, and an amber warning when you sing the other line. Sing/play one clear note; this is a monophonic pitch detector, not chord recognition. Shared notes are correctly treated as belonging to both lines. Outside an exercise, the target is its first beat.
 - Both synthesized parts have independent baseline volumes. **Hear my part clearly** starts off: turn it up to raise your selected line and soften the other. Gradually reduce it toward zero, or press **Return to normal mix**. Baseline sliders are not changed. Assistance can add your selected synth guide even if the guide checkbox is off; turning assistance back to zero restores that checkbox's behavior.
 - You can turn off your synthesized guide and sing only against the other line. Assistance and volume changes are live and do not affect captured microphone samples.
+
+### Harmony practices
+
+| Pattern | Harmony degrees | Notes with tonic C4 |
+|---|---|---|
+| Repeated tonic | 1, 1, 1, 1, 1, 1, 1, 1, 1 | C4 throughout |
+| Repeated dominant | 5, 5, 5, 5, 5, 5, 5, 5, 5 | G4 throughout |
+| Switch on beat 5 | 1, 1, 1, 1, 5, 5, 5, 5, 5 | C4 four times, then G4 five times |
+| Third above | 3, 4, 5, 6, 7, 6, 5, 4, 3 | E4, F4, G4, A4, B4, A4, G4, F4, E4 |
+| Third below | 6↓, 7↓, 1, 2, 3, 2, 1, 7↓, 6↓ | A3, B3, C4, D4, E4, D4, C4, B3, A3 |
+| Sixth above | 6, 7, 1↑, 2↑, 3↑, 2↑, 1↑, 7, 6 | A4, B4, C5, D5, E5, D5, C5, B4, A4 |
+
+These are **diatonic** intervals: two major-scale steps above/below for thirds, five above for sixths, not fixed semitone transpositions. The selected key/register sets the tonic for both lines. **↓** and **↑** mark degrees in the lower/upper scale octave; note names show the exact sounding register (a transposed scale can cross a scientific note-octave boundary elsewhere). Pick a comfortable tonic register: Third below dips below the tonic, and Sixth above reaches beyond the upper tonic. Pitch feedback covers the full selectable exercise range, including the highest sixth-above notes.
 
 ## Record a duet, either way around
 
@@ -34,7 +47,7 @@ This works melody-first or harmony-first. One completed take per part is retaine
 
 Completed takes are stored in IndexedDB **in this browser profile and origin**. Keep the same localhost hostname/port to find them next time. Private browsing, clearing site data, storage quotas or browser eviction may remove recordings. Storage failures are shown explicitly; an unsaved take remains usable for the visit and downloadable. Download important WAVs before closing the page.
 
-Changing key, tonic register, tempo, harmony pattern or rounds makes old takes incompatible, even when the recorded melody is unchanged. They remain playable/downloadable, but are never silently stretched, transposed or used for overdubbing. **Use these settings** restores the take's original exercise, including its harmony pattern. Existing repeated-1/repeated-5 takes remain compatible with their original patterns. All three patterns support recording either part first, live pitch/drift feedback and listening assistance. Exercise settings and part choice are locked while running. Volumes, assistance and guide remain adjustable.
+Changing key, tonic register, tempo, harmony pattern or rounds makes old takes incompatible, even when the recorded melody is unchanged. They remain playable/downloadable, but are never silently stretched, transposed or used for overdubbing. **Use these settings** restores the take's original exercise, including its harmony pattern. Existing takes remain compatible with their original patterns. All six patterns support recording either part first, live pitch/drift feedback and listening assistance. Exercise settings and part choice are locked while running. Volumes, assistance and guide remain adjustable.
 
 Synthesis, previous-take playback and microphone capture share one Web Audio sample clock. An AudioWorklet captures exact frame boundaries into mono 16-bit PCM WAVs, without count-in or codec padding. Audio device input/output latency and a human's response time are **not calibrated**: hardware can still introduce a small overdub offset. Use wired headphones and a low-latency input for best results. The limiter provides mix headroom but cannot repair microphone clipping.
 
@@ -44,7 +57,7 @@ Synthesis, previous-take playback and microphone capture share one Web Audio sam
 npm test
 ```
 
-Node's built-in tests cover scale/key/octave mapping, the exact switching-harmony sequence and beat alignment over repeated rounds, legacy/pattern recording compatibility, other-line feedback, assistance/zero restoration, pitch detection at 44.1/48 kHz, WAV shape and the actual recording worklet's sample trimming/cancellation. Real device sound quality, permission behavior and hardware latency still need a microphone/headphone check on your own browser.
+Node's built-in tests cover exact pitches for all patterns, diatonic thirds/sixths and octave boundaries, key/register transposition, repeated-round beat alignment, legacy/pattern recording compatibility, other-line feedback, assistance/zero restoration, pitch detection at 44.1/48 kHz through the highest selectable note, WAV shape and the actual recording worklet's sample trimming/cancellation. Real device sound quality, permission behavior and hardware latency still need a microphone/headphone check on your own browser.
 
 For repeatable end-to-end checks, with the local server running:
 
@@ -53,7 +66,7 @@ npm install
 npm run test:browser
 ```
 
-The browser check uses installed Google Chrome and **synthetic microphone tones**, not your hardware. It exercises both overdub directions for the original and switching patterns, verifies scheduled synth frequencies and beat alignment, changing pitch/drift targets, pattern compatibility/restoration after reload, microphone-only audio, sample-clock alignment, actual assistance gains/reset, cancellation, take playback, microphone cleanup, denied permission, storage failure and narrow-screen layout in a temporary browser profile. It leaves no test recordings in your normal browser. Set `APP_URL` for another local port. If Chrome is not installed, run `npx playwright install chromium` and `BROWSER_CHANNEL=chromium npm run test:browser`. Playwright is a development-only dependency; starting/using the app requires no package installation.
+The browser check uses installed Google Chrome and **synthetic microphone tones**, not your hardware. It exercises both overdub directions for the original, switching and all three interval patterns, verifies scheduled synth frequencies, octave labels and beat alignment, changing pitch/drift targets, pattern compatibility/restoration after reload, microphone-only audio, sample-clock alignment, actual assistance gains/reset, cancellation, take playback, microphone cleanup, denied permission, storage failure and narrow-screen layout in a temporary browser profile. It leaves no test recordings in your normal browser. Set `APP_URL` for another local port. If Chrome is not installed, run `npx playwright install chromium` and `BROWSER_CHANNEL=chromium npm run test:browser`. Playwright is a development-only dependency; starting/using the app requires no package installation.
 
 ## Files
 

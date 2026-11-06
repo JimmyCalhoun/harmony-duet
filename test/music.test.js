@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
-import { DEGREES, degreeMidi, noteName, midiFrequency, harmonyDegrees, makeTimeline, targetAt, signature, assessPitch, mixLevels, captureWindow, wavBlob } from '../public/music.js';
+import { DEGREES, degreeMidi, degreeLabel, noteName, midiFrequency, harmonyDegrees, makeTimeline, targetAt, signature, assessPitch, mixLevels, captureWindow, wavBlob } from '../public/music.js';
 import { detectPitch } from '../public/pitch.js';
 
 const config = { key: 0, octave: 4, bpm: 90, harmonyDegree: 1, repeats: 1 };
@@ -62,6 +62,38 @@ test('feedback detects the other line and does not warn where parts meet', () =>
   assert.match(assessPitch(midiFrequency(72), 60, 67).text, /octave/);
   assert.match(assessPitch(midiFrequency(71.9), 60, 67).text, /octave/);
 });
+const intervals = [
+  ['third-above', [3,4,5,6,7,6,5,4,3], [64,65,67,69,71,69,67,65,64], ['3','4','5','6','7','6','5','4','3']],
+  ['third-below', [-1,0,1,2,3,2,1,0,-1], [57,59,60,62,64,62,60,59,57], ['6↓','7↓','1','2','3','2','1','7↓','6↓']],
+  ['sixth-above', [6,7,8,9,10,9,8,7,6], [69,71,72,74,76,74,72,71,69], ['6','7','1↑','2↑','3↑','2↑','1↑','7','6']]
+];
+for (const [pattern, degrees, pitches, labels] of intervals) {
+  test(`${pattern} maps diatonic intervals, octave labels, transposition and repeated timeline`, () => {
+    const c = { ...config, harmonyDegree: pattern, repeats: 2 };
+    assert.deepEqual(harmonyDegrees(c), degrees);
+    assert.deepEqual(degrees.map(degreeLabel), labels);
+    const timeline = makeTimeline(c, 4);
+    assert.deepEqual(timeline.notes.map(note => note.harmony), [...pitches, ...pitches]);
+    assert.deepEqual(timeline.notes.slice(0, 9).map(note => note.melody), [60,62,64,65,67,65,64,62,60]);
+    for (const [index, note] of timeline.notes.entries()) {
+      assert.ok(Math.abs(note.start - (4 + index * 60 / 90)) < 1e-12);
+      assert.equal(targetAt(timeline, note.start + .01), note);
+      assert.equal(assessPitch(midiFrequency(note.melody), note.harmony, note.melody).kind, 'drift');
+    }
+    for (const key of [0,2,6,11]) {
+      for (const octave of [3,4,5]) {
+        assert.deepEqual(makeTimeline({ ...c, key, octave }).notes.slice(0,9).map(note => note.harmony),
+          pitches.map(pitch => pitch + key + 12 * (octave - 4)));
+      }
+    }
+    assert.equal(signature(JSON.parse(JSON.stringify(c))), signature(c));
+  });
+}
+test('all six pattern identities are incompatible with one another; unsupported choices fail explicitly', () => {
+  const choices = [1, 5, '1-to-5', ...intervals.map(([pattern]) => pattern)];
+  assert.equal(new Set(choices.map(harmonyDegree => signature({ ...config, harmonyDegree }))).size, 6);
+  assert.throws(() => harmonyDegrees({ ...config, harmonyDegree: 'unsupported' }), /supported harmony/);
+});
 test('listening assistance preserves normal mix at zero and emphasizes either selected part', () => {
   assert.deepEqual(mixLevels(.45, .4, 'melody', 0), { melody: .45, harmony: .4 });
   const melody = mixLevels(.45, .4, 'melody', 1);
@@ -77,7 +109,7 @@ test('listening assistance preserves normal mix at zero and emphasizes either se
 });
 test('YIN identifies voice-range sine waves and ignores silence', () => {
   for (const rate of [44100, 48000]) {
-    for (const frequency of [82.407, 130.813, 261.626, 440, 783.991, 1479.978]) {
+    for (const frequency of [82.407, 110, 130.813, 261.626, 440, 783.991, 1479.978, 2489.016]) {
       const samples = Float32Array.from({ length: 4096 }, (_, index) => .2 * Math.sin(2 * Math.PI * frequency * index / rate));
       const result = detectPitch(samples, rate);
       assert.ok(Math.abs(1200 * Math.log2(result / frequency)) < 12, `${frequency} Hz at ${rate} detected as ${result}`);
