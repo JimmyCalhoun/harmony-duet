@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "test:browser": "node scripts/browser-check.js"
+    "test:browser": "node scripts/browser-check.js",
+    "test:tips:browser": "node scripts/tips-browser-check.js"
   },
   "engines": { "node": ">=20" },
   "devDependencies": {

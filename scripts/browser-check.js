@@ -12,7 +12,7 @@ page.on('pageerror', error => errors.push(error.message));
 page.on('dialog', dialog => dialog.accept());
 const installFakeAudio = () => {
   const NativeContext = window.AudioContext;
-  window.testAudio = { events: [], microphones: [], mix: [] };
+  window.testAudio = { events: [], microphones: [], mix: [], disconnected: [] };
   window.AudioContext = class extends NativeContext {
     createOscillator() {
       const oscillator = super.createOscillator();
@@ -27,8 +27,16 @@ const installFakeAudio = () => {
       const gain = super.createGain();
       const connect = gain.connect.bind(gain);
       gain.connect = (destination, ...rest) => {
-        if (destination instanceof DynamicsCompressorNode) testAudio.mix.push(gain);
+        if (destination instanceof DynamicsCompressorNode) {
+          if (testAudio.failMonitor && testAudio.mix.length === 3) throw new Error('Monitoring output unavailable');
+          testAudio.mix.push(gain);
+        }
         return connect(destination, ...rest);
+      };
+      const disconnect = gain.disconnect.bind(gain);
+      gain.disconnect = (...args) => {
+        testAudio.disconnected.push(gain);
+        return disconnect(...args);
       };
       return gain;
     }
@@ -113,14 +121,46 @@ async function record(part, during) {
 try {
   await page.goto(process.env.APP_URL || 'http://localhost:4173');
   await page.waitForFunction(() => document.querySelectorAll('.note').length === 18);
+  assert.equal(await page.locator('#monitor').isChecked(), false);
+  assert.equal(await page.locator('#monitor').isDisabled(), true);
+  assert.equal(await page.locator('#monitor-volume').isDisabled(), true);
+  assert.equal(await page.evaluate(() => testAudio.microphones.length), 0, 'Neither tips nor monitoring should request microphone access on load');
   await page.locator('#bpm').fill('180');
   await page.locator('#bpm').dispatchEvent('change');
   await record('melody');
   let takes = await saved();
   assert.equal(takes.length, 1);
+  const unmonitoredPeak = takes[0].peak;
   assert.equal(takes[0].duration, 3);
   assert.ok(Math.abs(takes[0].hz - 220) < 2, 'Microphone-only capture must not contain the synthesized C-major guide');
   assert.equal(await page.locator('#detected-note').textContent(), 'A3', 'Live tuner must read synthetic microphone pitch');
+  assert.equal(await page.locator('#monitor').isEnabled(), true);
+  assert.equal(await page.evaluate(() => testAudio.mix[3].gain.value), 0, 'Microphone monitoring must start silent');
+  await page.locator('#monitor').check();
+  await page.waitForFunction(() => Math.abs(testAudio.mix[3].gain.value - .25) < .001);
+  assert.match(await page.locator('#mic-status').textContent(), /monitoring is on/);
+  await page.evaluate(() => {
+    const monitor = testAudio.mix[3];
+    testAudio.monitorAnalyser = monitor.context.createAnalyser();
+    monitor.connect(testAudio.monitorAnalyser);
+  });
+  await page.waitForFunction(() => {
+    const samples = new Float32Array(testAudio.monitorAnalyser.fftSize);
+    testAudio.monitorAnalyser.getFloatTimeDomainData(samples);
+    return Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length) > .02;
+  });
+  await page.locator('#monitor-volume').fill('0');
+  await page.waitForFunction(() => {
+    const samples = new Float32Array(testAudio.monitorAnalyser.fftSize);
+    testAudio.monitorAnalyser.getFloatTimeDomainData(samples);
+    return Math.max(...samples.map(Math.abs)) < .001;
+  });
+  await page.locator('#monitor-volume').fill('60');
+  await page.waitForFunction(() => Math.abs(testAudio.mix[3].gain.value - .6) < .001);
+  assert.equal(await page.locator('#monitor-volume-value').textContent(), '60%');
+  const normalMix = await page.evaluate(() => testAudio.mix.slice(0, 2).map(node => node.gain.value));
+  assert.ok(Math.abs(normalMix[0] - .45) < .001 && Math.abs(normalMix[1] - .4) < .001,
+    'Monitoring gain must not change the accompaniment mix');
 
   await page.locator('[name=part][value=harmony]').check();
   assert.match(await page.locator('#opposite-status').textContent(), /Matching melody/);
@@ -132,11 +172,34 @@ try {
   await record('harmony', async () => {
     const mix = await page.evaluate(() => testAudio.mix.map(node => node.gain.value));
     assert.ok(Math.abs(mix[0] - .162) < .01 && Math.abs(mix[1] - .64) < .01, `Assistance must audibly raise selected guide and duck the saved opposite line: ${JSON.stringify(mix)}`);
+    assert.ok(Math.abs(mix[3] - .6) < .001, 'Assistance must not change monitoring gain');
   });
   takes = await saved();
   const harmony = takes.find(take => take.part === 'harmony');
   assert.ok(Math.abs(harmony.hz - 330) < 2, 'Overdub must contain only the second microphone tone, not first take or synth');
   assert.equal(harmony.duration, 3);
+  assert.ok(Math.abs(harmony.peak - .15) < .002, 'Monitoring must not change microphone-only recording amplitude');
+  assert.ok(Math.abs(unmonitoredPeak - harmony.peak) < .002, 'Opting into monitoring must preserve raw microphone level');
+  await page.locator('#monitor').uncheck();
+  assert.equal(await page.locator('#monitor-volume').isDisabled(), true);
+  await page.waitForFunction(() => testAudio.mix[3].gain.value < .001);
+  await page.locator('#monitor').check();
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    delete document.hidden;
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  assert.equal(await page.locator('#monitor').isChecked(), false, 'Hiding the page must switch off monitoring without restoring it on return');
+  await page.waitForFunction(() => testAudio.mix[3].gain.value < .001);
+  await page.locator('#monitor').check();
+  await page.waitForFunction(() => testAudio.mix[3].gain.value > .59);
+  await page.evaluate(() => testAudio.mix[3].context.suspend());
+  await page.waitForFunction(() => !document.getElementById('monitor').checked && document.getElementById('monitor').disabled);
+  assert.match(await page.locator('#mic-status').textContent(), /Audio is interrupted/);
+  await page.evaluate(() => testAudio.mix[3].context.resume());
+  await page.waitForFunction(() => !document.getElementById('monitor').disabled && testAudio.mix[3].gain.value < .001);
+  assert.equal(await page.locator('#monitor').isChecked(), false, 'Resuming interrupted audio must not restart monitoring');
   let events = await page.evaluate(() => testAudio.events);
   let captures = events.filter(event => event.type === 'arm');
   let playbacks = events.filter(event => event.type === 'play-take');
@@ -174,12 +237,30 @@ try {
   assert.equal(await page.locator('.mismatch').count(), 2);
   await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
   assert.equal(await page.locator('#play-duet').isEnabled(), true);
+  await page.locator('#monitor').check();
+  await page.waitForFunction(() => testAudio.mix[3].gain.value > .59);
   await page.locator('#mic').click();
   assert.equal(await page.evaluate(() => testAudio.microphones.every(mic => mic.stream.getTracks().every(track => track.readyState === 'ended'))), true);
+  assert.equal(await page.locator('#monitor').isChecked(), false);
+  assert.equal(await page.locator('#monitor').isDisabled(), true);
+  assert.equal(await page.evaluate(() => testAudio.disconnected.includes(testAudio.mix[3])), true, 'Mic disconnection must disconnect monitoring output');
+  await page.locator('#mic').click();
+  await page.waitForFunction(() => document.getElementById('mic-light').textContent === 'Mic on');
+  assert.equal(await page.locator('#monitor').isChecked(), false, 'Reconnecting the microphone must not restore monitoring');
+  assert.equal(await page.evaluate(() => testAudio.mix.at(-1).gain.value), 0);
+  await page.locator('#monitor').check();
+  await page.waitForFunction(() => testAudio.mix.at(-1).gain.value > .59);
+  await page.evaluate(() => testAudio.microphones.at(-1).stream.getAudioTracks()[0].dispatchEvent(new Event('ended')));
+  assert.equal(await page.locator('#monitor').isChecked(), false);
+  assert.equal(await page.locator('#monitor').isDisabled(), true);
+  assert.equal(await page.evaluate(() => testAudio.disconnected.includes(testAudio.mix.at(-1)) &&
+    testAudio.microphones.every(mic => mic.stream.getTracks().every(track => track.readyState === 'ended'))), true,
+  'External microphone loss must disconnect monitoring and release all tracks');
   await page.reload();
   await page.waitForFunction(() => document.querySelectorAll('audio').length === 2);
   await page.locator('.take').first().getByRole('button', { name: 'Use these settings' }).click();
   assert.equal(await page.locator('#play-duet').isEnabled(), true, 'Reload must restore both saved takes');
+  assert.equal(await page.locator('#monitor').isChecked(), false, 'Reload must not restore monitoring');
   await page.locator('audio').first().evaluate(audio => audio.play());
   await page.waitForFunction(() => document.querySelector('audio').currentTime > 0.15);
   await page.locator('audio').first().evaluate(audio => audio.pause());
@@ -302,6 +383,9 @@ try {
 
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'Mobile layout must not overflow');
+  const monitoringBox = await page.locator('.monitoring').boundingBox();
+  const pitchBox = await page.locator('#pitch-card').boundingBox();
+  assert.ok(monitoringBox.y + monitoringBox.height <= pitchBox.y, 'Monitoring controls must not overlap mobile pitch feedback');
   await page.screenshot({ path: process.env.SCREENSHOT_PATH || '/tmp/harmony-duet-mobile.png', fullPage: true });
 
   const failure = await browser.newPage();
@@ -316,6 +400,17 @@ try {
   await failure.waitForFunction(() => document.getElementById('notice').textContent.includes('permission was denied'));
   assert.equal(await failure.locator('#record').isEnabled(), true);
   assert.equal(await failure.locator('#mic-light').textContent(), 'Mic off');
+  assert.equal(await failure.locator('#monitor').isDisabled(), true);
+  assert.equal(await failure.locator('#monitor').isChecked(), false);
+  await failure.reload();
+  await failure.waitForFunction(() => document.querySelectorAll('.note').length === 18);
+  await failure.evaluate(() => { testAudio.failMonitor = true; });
+  await failure.locator('#mic').click();
+  await failure.waitForFunction(() => document.getElementById('notice').textContent.includes('Monitoring output unavailable'));
+  assert.equal(await failure.locator('#monitor').isDisabled(), true);
+  assert.equal(await failure.locator('#monitor').isChecked(), false);
+  assert.equal(await failure.evaluate(() => testAudio.microphones.every(mic => mic.stream.getTracks().every(track => track.readyState === 'ended'))), true,
+    'Failed monitoring setup must report the error and release microphone access');
   await failure.reload();
   await failure.waitForFunction(() => document.querySelectorAll('.note').length === 18);
   await failure.evaluate(() => {
@@ -332,6 +427,8 @@ try {
   await failure.waitForFunction(() => !document.getElementById('record').disabled);
   assert.equal(await failure.locator('#mic-light').textContent(), 'Mic off', 'Cancelling pending permission must release late-arriving microphone stream');
   assert.equal(await failure.evaluate(() => testAudio.microphones.every(mic => mic.stream.getTracks().every(track => track.readyState === 'ended'))), true);
+  assert.equal(await failure.locator('#monitor').isDisabled(), true);
+  assert.equal(await failure.locator('#monitor').isChecked(), false);
   await failure.locator('#bpm').fill('180');
   await failure.locator('#bpm').dispatchEvent('change');
   await failure.evaluate(() => {
@@ -342,9 +439,17 @@ try {
   assert.match(await failure.locator('#notice').textContent(), /could not be saved.*quota/i);
   assert.equal(await failure.locator('audio').count(), 1, 'Storage failure must retain a playable/downloadable take for the visit');
   assert.equal(await failure.locator('#record').isEnabled(), true, 'Storage failure must not leave the interface busy');
+  await failure.locator('#monitor').check();
+  await failure.waitForFunction(() => testAudio.mix.at(-1).gain.value > .24);
+  await failure.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+  assert.equal(await failure.locator('#monitor').isDisabled(), true);
+  assert.equal(await failure.locator('#monitor').isChecked(), false);
+  assert.equal(await failure.evaluate(() => testAudio.disconnected.includes(testAudio.mix.at(-1)) &&
+    testAudio.microphones.every(mic => mic.stream.getTracks().every(track => track.readyState === 'ended'))), true,
+  'Leaving the page must disconnect monitoring and stop microphone tracks');
   await failure.close();
   assert.deepEqual(errors, []);
-  console.log('PASS: original/switching/third-above/third-below/sixth-above patterns, exact synth pitches and octave labels, both overdub directions per new pattern, changing pitch/drift targets, pattern compatibility/legacy restore/persistence, frame-aligned playback, microphone-only WAVs, assistance gains/reset, cancellation, invalid settings, solo/duet playback, mic cleanup, denied permission, pending-request cancellation, storage failure and mobile layout.');
+  console.log('PASS: all harmony patterns and overdub directions, synth pitches/octaves, pitch feedback, compatible takes/persistence, frame-aligned playback, microphone-only WAVs, optional monitoring signal/volume/independent gain, interruption/visibility/disconnect/pagehide cleanup, assistance gains/reset, cancellation, denied permission, explicit monitoring setup failure, storage failure and mobile layout.');
 } finally {
   await browser.close();
 }

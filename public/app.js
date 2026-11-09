@@ -1,6 +1,7 @@
 import { DEGREES, KEYS, HARMONY_PATTERNS, otherPart, midiFrequency, frequencyMidi, noteName, degreeMidi, degreeLabel, harmonyDegrees, signature, makeTimeline, targetAt, assessPitch, mixLevels, captureWindow, wavBlob } from './music.js';
 import { detectPitch } from './pitch.js';
 import { openStore, saveTake, deleteTake } from './storage.js';
+import { initTeachingTips } from './tips.js';
 
 const $ = id => document.getElementById(id);
 const partNames = { melody: 'melody', harmony: 'harmony' };
@@ -42,6 +43,8 @@ class AudioEngine {
   analyser = null;
   capture = null;
   silent = null;
+  monitor = null;
+  output = null;
   nodes = new Set();
   channels = {};
   async ready() {
@@ -57,15 +60,18 @@ class AudioEngine {
       const master = this.context.createGain();
       master.gain.value = 0.65;
       compressor.connect(master).connect(this.context.destination);
+      this.output = compressor;
       for (const part of ['melody', 'harmony', 'count']) {
         this.channels[part] = this.context.createGain();
         this.channels[part].connect(compressor);
       }
       this.channels.count.gain.value = 0.25;
       this.context.onstatechange = () => {
-        if (this.context.state !== 'running' && active) {
-          stop('Audio was interrupted. The unfinished take was discarded; press Practice or Record to restart.');
+        if (this.context.state !== 'running') {
+          $('monitor').checked = false;
+          if (active) stop('Audio was interrupted. The unfinished take was discarded; press Practice or Record to restart.');
         }
+        this.updateMonitoring();
       };
     }
     await this.context.resume();
@@ -102,6 +108,9 @@ class AudioEngine {
       this.silent.gain.value = 0;
       this.source.connect(this.analyser);
       this.source.connect(this.capture).connect(this.silent).connect(this.context.destination);
+      this.monitor = this.context.createGain();
+      this.monitor.gain.value = 0;
+      this.source.connect(this.monitor).connect(this.output);
       stream.getAudioTracks().forEach(track => {
         track.onended = () => {
           stop('Microphone access ended. Re-enable the microphone to continue.');
@@ -111,10 +120,10 @@ class AudioEngine {
           if (active?.mode === 'record') stop('The microphone was muted by the device. The unfinished take was discarded.');
           $('mic-status').textContent = 'Microphone input is muted by the device or browser.';
         };
-        track.onunmute = () => { $('mic-status').textContent = 'Listening for pitch only. No live microphone monitoring.'; };
+        track.onunmute = () => this.updateMonitoring();
       });
       $('mic').textContent = 'Disconnect microphone';
-      $('mic-status').textContent = 'Listening for pitch only. No live microphone monitoring.';
+      this.updateMonitoring();
       $('mic-light').textContent = 'Mic on';
       $('mic-light').classList.add('on');
     } catch (error) {
@@ -136,13 +145,35 @@ class AudioEngine {
       track.onunmute = null;
       track.stop();
     });
-    for (const node of [this.source, this.analyser, this.capture, this.silent]) node?.disconnect();
-    this.stream = this.source = this.analyser = this.capture = this.silent = null;
+    for (const node of [this.source, this.analyser, this.capture, this.silent, this.monitor]) node?.disconnect();
+    this.stream = this.source = this.analyser = this.capture = this.silent = this.monitor = null;
+    $('monitor').checked = false;
+    this.updateMonitoring();
     $('mic').textContent = 'Enable microphone';
     $('mic-status').textContent = 'Microphone disconnected. Enable it when you are ready.';
     $('mic-light').textContent = 'Mic off';
     $('mic-light').classList.remove('on');
     resetPitch('Enable your mic to see live feedback.');
+  }
+  updateMonitoring() {
+    const available = Boolean(this.stream?.active && this.monitor && this.context.state === 'running');
+    const enabled = available && $('monitor').checked;
+    const volume = Number($('monitor-volume').value);
+    $('monitor').disabled = !available;
+    $('monitor-volume').disabled = !enabled;
+    $('monitor-volume-value').textContent = `${volume}%`;
+    if (this.monitor) {
+      this.monitor.gain.setTargetAtTime(enabled ? volume / 100 : 0, this.context.currentTime, 0.015);
+    }
+    if (this.stream?.active) {
+      $('mic-status').textContent = this.context.state !== 'running'
+        ? 'Audio is interrupted. Monitoring is off; press Practice or Record to restart audio.'
+        : this.stream.getAudioTracks().some(track => track.muted)
+          ? 'Microphone input is muted by the device or browser.'
+          : enabled
+            ? 'Live microphone monitoring is on. Use headphones; your recording is unchanged.'
+            : 'Listening for pitch and recording. Live microphone monitoring is off.';
+    }
   }
   updateMix() {
     const levels = mixLevels(Number($('melody-volume').value) / 100, Number($('harmony-volume').value) / 100,
@@ -195,6 +226,8 @@ class AudioEngine {
   }
 }
 const engine = new AudioEngine();
+$('monitor').checked = false;
+engine.updateMonitoring();
 
 function updateControls() {
   const busy = Boolean(active || starting || saving);
@@ -209,6 +242,7 @@ function updateControls() {
     audio.controls = !busy;
     if (busy) audio.pause();
   });
+  teachingTips.refresh();
 }
 
 function renderExercise() {
@@ -562,6 +596,7 @@ document.querySelectorAll('.exercise-setting,[name=part]').forEach(element => el
 }));
 $('use-take').addEventListener('change', renderExercise);
 for (const id of ['melody-volume', 'harmony-volume', 'assistance', 'guide']) $(id).addEventListener('input', () => engine.updateMix());
+for (const id of ['monitor', 'monitor-volume']) $(id).addEventListener('input', () => engine.updateMonitoring());
 $('reset-assistance').onclick = () => { $('assistance').value = 0; engine.updateMix(); };
 $('practice').onclick = () => start('practice');
 $('record').onclick = () => start('record');
@@ -598,8 +633,13 @@ window.addEventListener('pagehide', () => {
 });
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    $('monitor').checked = false;
+    engine.updateMonitoring();
+  }
   if (document.hidden && (active || starting)) stop('Exercise stopped when the page was hidden. Keep this page visible while recording; unfinished takes are discarded.');
 });
+const teachingTips = initTeachingTips(() => !$('play-duet').disabled);
 try {
   for (const take of await openStore()) takes.set(take.part, take);
   storageReady = true;

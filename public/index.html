@@ -16,7 +16,7 @@
   <main>
     <section class="intro">
       <div><p class="eyebrow">TWO VOICES. YOUR OWN LINE.</p><h1>A little independence.<br>A lot of harmony.</h1><p class="lede">Follow the melody, hold a note, or try a harmony shift.<br>Then sing alongside a recording of yourself.</p></div>
-      <aside class="tip"><span aria-hidden="true">↗</span><div><strong>Headphones on. Find your space.</strong><p>Keep the accompaniment out of your microphone. Your mic is never played live through the speakers.</p></div></aside>
+      <aside class="tip"><span aria-hidden="true">↗</span><div><strong>Headphones on. Find your space.</strong><p>Keep the accompaniment out of your microphone. Live mic monitoring is optional; use headphones to avoid feedback.</p></div></aside>
     </section>
 
     <section class="setup panel" aria-labelledby="setup-title">
@@ -67,6 +67,12 @@
         <div class="section-heading"><h2 id="feedback-title">Live <span>Find your pitch</span></h2><span id="mic-light" class="mic-light">Mic off</span></div>
         <button id="mic" class="mic-button">Enable microphone</button>
         <p id="mic-status" class="muted">Permission is requested only when you enable the mic or record.</p>
+        <div class="monitoring">
+          <label class="check"><input id="monitor" type="checkbox" disabled autocomplete="off" aria-describedby="monitor-note"><span>Hear myself <small>Enable the microphone first. Live monitoring is off by default.</small></span></label>
+          <label for="monitor-volume">My live voice <output id="monitor-volume-value">25%</output></label>
+          <input id="monitor-volume" type="range" min="0" max="100" value="25" disabled aria-describedby="monitor-note">
+          <p id="monitor-note" class="muted">Headphones only: speakers can cause feedback. Start quietly. Browser monitoring has some delay; wired headphones or an interface with direct monitoring work best. This volume does not change your recording.</p>
+        </div>
         <div id="pitch-card" class="pitch-card">
           <span class="pitch-caption">YOU ARE SINGING / PLAYING</span>
           <div id="detected-note" class="detected-note">—</div>
@@ -89,6 +95,7 @@
       <p class="storage-note" id="storage-status">Recordings are saved in this browser on this device. Download a WAV to keep a backup.</p>
     </section>
     <div id="notice" class="notice" role="alert" hidden></div>
+    <div class="tips-controls"><button id="show-tips" class="text-button">Show tips again</button><p id="tips-status" class="muted" role="status"></p></div>
     <footer><span>Small steps. Steady voice.</span><span>No accounts. No uploads. Just practice.</span></footer>
   </main>
 </body>
