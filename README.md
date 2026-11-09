@@ -1,6 +1,16 @@
 # Harmony Duet
 
-A separate, local browser-native harmony practice app. No account, external assets, uploaded audio, build step, or production dependencies. The `harmony-trainer` project is not used or modified.
+A separate, browser-native harmony practice app. No account, external assets, uploaded audio, build step, or production dependencies. The `harmony-trainer` project is not used or modified.
+
+## Use and share online
+
+Open **https://jimmycalhoun.github.io/harmony-duet/** in a current Chrome, Edge, Firefox, or Safari. Share that link; no installation or account is needed. Allow microphone access when you enable the mic or record, and wear headphones.
+
+The app runs entirely in your browser. Microphone audio and saved takes are not uploaded to GitHub or shared with anyone who opens the link. Recordings stay in the browser profile that made them; the online site and localhost have separate recording storage. Download WAVs to keep or share recordings.
+
+### GitHub Pages deployment
+
+GitHub Pages uses **GitHub Actions** as its source (repository **Settings → Pages → Build and deployment**). `.github/workflows/pages.yml` runs the unit checks and publishes only `public/` when that directory or the workflow changes on `main`. You can also run **Deploy GitHub Pages** manually from the Actions tab. There is no build or server needed on Pages; relative asset, module and AudioWorklet paths support the `/harmony-duet/` project URL. The deployment's live URL appears in the `github-pages` environment.
 
 ## Run
 
@@ -45,7 +55,7 @@ This works melody-first or harmony-first. One completed take per part is retaine
 
 ## Local saving, settings and timing
 
-Completed takes are stored in IndexedDB **in this browser profile and origin**. Keep the same localhost hostname/port to find them next time. Private browsing, clearing site data, storage quotas or browser eviction may remove recordings. Storage failures are shown explicitly; an unsaved take remains usable for the visit and downloadable. Download important WAVs before closing the page.
+Completed takes are stored in IndexedDB **in this browser profile and origin**. Reopen the same online site, or keep the same localhost hostname/port, to find them next time. GitHub Pages projects on the same hostname share an origin; this app's `harmony-duet` database is not an account or cloud backup. Private browsing, clearing site data, storage quotas or browser eviction may remove recordings. Storage failures are shown explicitly; an unsaved take remains usable for the visit and downloadable. Download important WAVs before closing the page.
 
 Changing key, tonic register, tempo, harmony pattern or rounds makes old takes incompatible, even when the recorded melody is unchanged. They remain playable/downloadable, but are never silently stretched, transposed or used for overdubbing. **Use these settings** restores the take's original exercise, including its harmony pattern. Existing takes remain compatible with their original patterns. All six patterns support recording either part first, live pitch/drift feedback and listening assistance. Exercise settings and part choice are locked while running. Volumes, assistance and guide remain adjustable.
 
@@ -66,7 +76,7 @@ npm install
 npm run test:browser
 ```
 
-The browser check uses installed Google Chrome and **synthetic microphone tones**, not your hardware. It exercises both overdub directions for the original, switching and all three interval patterns, verifies scheduled synth frequencies, octave labels and beat alignment, changing pitch/drift targets, pattern compatibility/restoration after reload, microphone-only audio, sample-clock alignment, actual assistance gains/reset, cancellation, take playback, microphone cleanup, denied permission, storage failure and narrow-screen layout in a temporary browser profile. It leaves no test recordings in your normal browser. Set `APP_URL` for another local port. If Chrome is not installed, run `npx playwright install chromium` and `BROWSER_CHANNEL=chromium npm run test:browser`. Playwright is a development-only dependency; starting/using the app requires no package installation.
+The browser check uses installed Google Chrome and **synthetic microphone tones**, not your hardware. It exercises both overdub directions for the original, switching and all three interval patterns, verifies scheduled synth frequencies, octave labels and beat alignment, changing pitch/drift targets, pattern compatibility/restoration after reload, microphone-only audio, sample-clock alignment, actual assistance gains/reset, cancellation, take playback, microphone cleanup, denied permission, storage failure and narrow-screen layout in a temporary browser profile. It leaves no test recordings in your normal browser. Set `APP_URL` for another local port or use `APP_URL=https://jimmycalhoun.github.io/harmony-duet/ npm run test:browser` to check the published site. If Chrome is not installed, run `npx playwright install chromium` and `BROWSER_CHANNEL=chromium npm run test:browser`. Playwright is a development-only dependency; starting/using the app requires no package installation.
 
 ## Files
 
